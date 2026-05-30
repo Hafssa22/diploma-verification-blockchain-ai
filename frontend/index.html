@@ -1,204 +1,1107 @@
 <!DOCTYPE html>
 <html lang="fr">
 <head>
-    <meta charset="UTF-8">
-    <title>Vérification Diplômes</title>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
-    <style>
-        body { font-family: Arial; max-width: 800px; margin: 50px auto; padding: 20px; }
-        button { padding: 10px 20px; margin: 10px 5px; cursor: pointer; border-radius: 8px; border: none; }
-        .btn-connect { background: #f6851b; color: white; font-size: 16px; }
-        .btn-mint { background: #28a745; color: white; }
-        .btn-verify { background: #007bff; color: white; }
-        input { padding: 8px; margin: 5px; width: 300px; border-radius: 5px; border: 1px solid #ccc; }
-        .result { padding: 15px; margin: 10px 0; border-radius: 8px; font-weight: bold; }
-        .success { background: #d4edda; color: #155724; }
-        .error { background: #f8d7da; color: #721c24; }
-        .info { background: #d1ecf1; color: #0c5460; }
-        h2 { border-bottom: 2px solid #eee; padding-bottom: 10px; }
-    </style>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DiploChain — Vérification de Diplômes</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&family=DM+Sans:wght@300;400;500;600&display=swap');
+
+  :root {
+    --bg: #050810;
+    --surface: #0d1117;
+    --surface2: #161b22;
+    --border: #21262d;
+    --accent: #00d4ff;
+    --accent2: #7c3aed;
+    --success: #22c55e;
+    --danger: #ef4444;
+    --warning: #f59e0b;
+    --text: #e6edf3;
+    --muted: #7d8590;
+    --font-mono: 'Space Mono', monospace;
+    --font-body: 'DM Sans', sans-serif;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    font-family: var(--font-body);
+    background: var(--bg);
+    color: var(--text);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Grid background */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image:
+      linear-gradient(rgba(0,212,255,0.03) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(0,212,255,0.03) 1px, transparent 1px);
+    background-size: 40px 40px;
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  /* ─── NAV ─── */
+  nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(5,8,16,0.9);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 32px;
+    height: 64px;
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .nav-brand {
+    font-family: var(--font-mono);
+    font-size: 16px; font-weight: 700;
+    color: var(--accent);
+    letter-spacing: 2px;
+  }
+  .nav-brand span { color: var(--text); }
+  .nav-tabs { display: flex; gap: 4px; }
+  .nav-tab {
+    padding: 8px 16px; border-radius: 6px;
+    font-size: 13px; font-weight: 500;
+    color: var(--muted); cursor: pointer;
+    border: none; background: transparent;
+    transition: all 0.2s;
+    display: none;
+  }
+  .nav-tab.visible { display: block; }
+  .nav-tab:hover { color: var(--text); background: var(--surface2); }
+  .nav-tab.active { color: var(--accent); background: rgba(0,212,255,0.08); }
+  .nav-wallet {
+    font-family: var(--font-mono);
+    font-size: 11px; color: var(--muted);
+    background: var(--surface2);
+    padding: 6px 12px; border-radius: 6px;
+    border: 1px solid var(--border);
+  }
+  .nav-wallet.connected { color: var(--success); border-color: rgba(34,197,94,0.3); }
+
+  /* ─── PAGES ─── */
+  .page { display: none; min-height: 100vh; padding-top: 64px; position: relative; z-index: 1; }
+  .page.active { display: block; }
+
+  /* ─── LOGIN PAGE ─── */
+  #loginPage {
+    display: none;
+    justify-content: center; align-items: center;
+    min-height: 100vh; padding-top: 64px;
+  }
+  #loginPage.active { display: flex; }
+
+  .login-container {
+    width: 420px;
+    animation: fadeUp 0.6s ease;
+  }
+
+  .login-header {
+    text-align: center; margin-bottom: 40px;
+  }
+  .login-header .logo {
+    width: 64px; height: 64px;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    border-radius: 16px;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 28px; margin: 0 auto 20px;
+    box-shadow: 0 0 40px rgba(0,212,255,0.3);
+  }
+  .login-header h1 {
+    font-family: var(--font-mono);
+    font-size: 22px; font-weight: 700;
+    color: var(--text); margin-bottom: 8px;
+  }
+  .login-header p { color: var(--muted); font-size: 14px; }
+
+  .login-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px; padding: 32px;
+    box-shadow: 0 0 60px rgba(0,0,0,0.5);
+  }
+
+  .form-group { margin-bottom: 20px; }
+  .form-group label {
+    display: block; margin-bottom: 8px;
+    font-size: 12px; font-weight: 600;
+    color: var(--muted); letter-spacing: 1px;
+    text-transform: uppercase;
+  }
+  .form-group input, .form-group select {
+    width: 100%; padding: 12px 16px;
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    color: var(--text); font-size: 14px;
+    font-family: var(--font-body);
+    transition: border-color 0.2s;
+    outline: none;
+  }
+  .form-group input:focus, .form-group select:focus {
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px rgba(0,212,255,0.1);
+  }
+
+  .btn {
+    width: 100%; padding: 14px;
+    border: none; border-radius: 8px;
+    font-size: 14px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s;
+    font-family: var(--font-body);
+  }
+  .btn-primary {
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    color: white;
+    box-shadow: 0 4px 20px rgba(0,212,255,0.3);
+  }
+  .btn-primary:hover { transform: translateY(-1px); box-shadow: 0 6px 30px rgba(0,212,255,0.4); }
+  .btn-success { background: var(--success); color: white; }
+  .btn-success:hover { opacity: 0.9; }
+  .btn-danger { background: var(--danger); color: white; }
+  .btn-outline {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text);
+    width: auto; padding: 10px 20px;
+  }
+  .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+
+  .metamask-btn {
+    width: 100%; padding: 12px;
+    background: rgba(245,130,49,0.1);
+    border: 1px solid rgba(245,130,49,0.3);
+    border-radius: 8px; color: #f58231;
+    font-size: 13px; font-weight: 600;
+    cursor: pointer; transition: all 0.2s;
+    display: flex; align-items: center; justify-content: center; gap: 8px;
+    margin-bottom: 20px;
+  }
+  .metamask-btn:hover { background: rgba(245,130,49,0.2); }
+
+  .divider {
+    display: flex; align-items: center; gap: 12px;
+    margin: 20px 0; color: var(--muted); font-size: 12px;
+  }
+  .divider::before, .divider::after {
+    content: ''; flex: 1;
+    height: 1px; background: var(--border);
+  }
+
+  /* ─── DASHBOARD ─── */
+  .dashboard {
+    max-width: 1200px; margin: 0 auto;
+    padding: 40px 32px;
+  }
+
+  .page-header {
+    margin-bottom: 32px;
+  }
+  .page-header h2 {
+    font-family: var(--font-mono);
+    font-size: 20px; color: var(--text);
+    margin-bottom: 4px;
+  }
+  .page-header p { color: var(--muted); font-size: 14px; }
+
+  .stats-grid {
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    gap: 16px; margin-bottom: 32px;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px; padding: 20px;
+    transition: border-color 0.2s;
+  }
+  .stat-card:hover { border-color: var(--accent); }
+  .stat-label { font-size: 12px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px; }
+  .stat-value { font-family: var(--font-mono); font-size: 28px; font-weight: 700; color: var(--accent); }
+  .stat-sub { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+  /* ─── ADD DIPLOMA PAGE ─── */
+  .add-diploma-layout {
+    max-width: 900px; margin: 0 auto; padding: 40px 32px;
+  }
+
+  .card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 16px; padding: 28px;
+    margin-bottom: 20px;
+  }
+  .card-title {
+    font-family: var(--font-mono);
+    font-size: 14px; font-weight: 700;
+    color: var(--accent); margin-bottom: 20px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .card-title::before {
+    content: ''; width: 3px; height: 16px;
+    background: var(--accent); border-radius: 2px;
+  }
+
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
+
+  /* Progress Steps */
+  .steps {
+    display: flex; align-items: center; gap: 0;
+    margin-bottom: 32px;
+  }
+  .step {
+    display: flex; align-items: center; gap: 8px;
+    flex: 1;
+  }
+  .step-num {
+    width: 32px; height: 32px; border-radius: 50%;
+    border: 2px solid var(--border);
+    display: flex; align-items: center; justify-content: center;
+    font-family: var(--font-mono); font-size: 12px;
+    color: var(--muted); flex-shrink: 0;
+    transition: all 0.3s;
+  }
+  .step.active .step-num { border-color: var(--accent); color: var(--accent); background: rgba(0,212,255,0.1); }
+  .step.done .step-num { border-color: var(--success); background: var(--success); color: white; }
+  .step-label { font-size: 12px; color: var(--muted); }
+  .step.active .step-label { color: var(--text); }
+  .step.done .step-label { color: var(--success); }
+  .step-line { flex: 1; height: 1px; background: var(--border); margin: 0 8px; }
+  .step-line.done { background: var(--success); }
+
+  /* Alert boxes */
+  .alert {
+    padding: 14px 16px; border-radius: 8px;
+    font-size: 13px; margin-bottom: 16px;
+    display: none;
+    animation: fadeIn 0.3s ease;
+  }
+  .alert.show { display: flex; align-items: flex-start; gap: 10px; }
+  .alert-success { background: rgba(34,197,94,0.1); border: 1px solid rgba(34,197,94,0.3); color: var(--success); }
+  .alert-danger { background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.3); color: var(--danger); }
+  .alert-warning { background: rgba(245,158,11,0.1); border: 1px solid rgba(245,158,11,0.3); color: var(--warning); }
+  .alert-info { background: rgba(0,212,255,0.1); border: 1px solid rgba(0,212,255,0.3); color: var(--accent); }
+
+  /* Hash display */
+  .hash-display {
+    font-family: var(--font-mono);
+    font-size: 11px; color: var(--accent);
+    background: rgba(0,212,255,0.05);
+    border: 1px solid rgba(0,212,255,0.2);
+    border-radius: 6px; padding: 10px 12px;
+    word-break: break-all; margin-top: 8px;
+  }
+
+  /* QR Code */
+  .qr-container {
+    display: flex; flex-direction: column; align-items: center;
+    gap: 16px; padding: 24px;
+    background: white; border-radius: 12px;
+    width: fit-content; margin: 0 auto;
+  }
+  .qr-label { font-size: 12px; color: #333; font-weight: 600; }
+
+  /* ─── VERIFY PAGE ─── */
+  .verify-layout {
+    max-width: 800px; margin: 0 auto; padding: 40px 32px;
+  }
+
+  .scan-area {
+    border: 2px dashed var(--border);
+    border-radius: 12px; padding: 40px;
+    text-align: center; cursor: pointer;
+    transition: all 0.2s; margin-bottom: 20px;
+  }
+  .scan-area:hover { border-color: var(--accent); background: rgba(0,212,255,0.02); }
+  .scan-icon { font-size: 48px; margin-bottom: 12px; }
+  .scan-area h3 { font-size: 16px; margin-bottom: 6px; }
+  .scan-area p { font-size: 13px; color: var(--muted); }
+
+  .result-card {
+    background: var(--surface2);
+    border: 1px solid var(--border);
+    border-radius: 12px; padding: 24px;
+    display: none;
+  }
+  .result-card.show { display: block; animation: fadeIn 0.4s ease; }
+  .result-valid { border-color: rgba(34,197,94,0.4); background: rgba(34,197,94,0.05); }
+  .result-invalid { border-color: rgba(239,68,68,0.4); background: rgba(239,68,68,0.05); }
+
+  .result-header {
+    display: flex; align-items: center; gap: 12px;
+    margin-bottom: 20px; padding-bottom: 16px;
+    border-bottom: 1px solid var(--border);
+  }
+  .result-icon { font-size: 36px; }
+  .result-title { font-family: var(--font-mono); font-size: 18px; font-weight: 700; }
+  .result-valid .result-title { color: var(--success); }
+  .result-invalid .result-title { color: var(--danger); }
+
+  .diploma-info { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+  .info-item { background: var(--surface); border-radius: 8px; padding: 12px; }
+  .info-label { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+  .info-value { font-size: 14px; font-weight: 500; }
+
+  .fraud-meter { margin-top: 16px; }
+  .fraud-label { display: flex; justify-content: space-between; margin-bottom: 6px; font-size: 12px; }
+  .fraud-bar { height: 6px; background: var(--surface2); border-radius: 3px; overflow: hidden; }
+  .fraud-fill { height: 100%; border-radius: 3px; transition: width 1s ease; }
+  .fraud-low { background: var(--success); }
+  .fraud-mid { background: var(--warning); }
+  .fraud-high { background: var(--danger); }
+
+  /* ─── LOADING ─── */
+  .loading-overlay {
+    position: fixed; inset: 0; z-index: 200;
+    background: rgba(5,8,16,0.8); backdrop-filter: blur(4px);
+    display: none; justify-content: center; align-items: center;
+    flex-direction: column; gap: 16px;
+  }
+  .loading-overlay.show { display: flex; }
+  .spinner {
+    width: 48px; height: 48px;
+    border: 3px solid var(--border);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+  }
+  .loading-text { font-family: var(--font-mono); font-size: 13px; color: var(--accent); }
+
+  /* ─── ANIMATIONS ─── */
+  @keyframes fadeUp { from { opacity: 0; transform: translateY(20px); } to { opacity: 1; transform: translateY(0); } }
+  @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.5; } }
+
+  .tag {
+    display: inline-block; padding: 3px 10px;
+    border-radius: 20px; font-size: 11px; font-weight: 600;
+  }
+  .tag-success { background: rgba(34,197,94,0.15); color: var(--success); }
+  .tag-danger { background: rgba(239,68,68,0.15); color: var(--danger); }
+  .tag-warning { background: rgba(245,158,11,0.15); color: var(--warning); }
+  .tag-info { background: rgba(0,212,255,0.15); color: var(--accent); }
+
+  .tx-link {
+    font-family: var(--font-mono); font-size: 11px;
+    color: var(--accent); text-decoration: none;
+  }
+  .tx-link:hover { text-decoration: underline; }
+
+  input[type="file"] { display: none; }
+</style>
 </head>
 <body>
 
-    <h1>🎓 Système de Vérification de Diplômes</h1>
+<!-- LOADING -->
+<div class="loading-overlay" id="loadingOverlay">
+  <div class="spinner"></div>
+  <div class="loading-text" id="loadingText">Transaction en cours...</div>
+</div>
 
-    <!-- Connexion Metamask -->
-    <section>
-        <h2>🦊 Connexion Metamask</h2>
-        <button class="btn-connect" onclick="connectMetamask()">Connecter Metamask</button>
-        <div id="walletInfo"></div>
-    </section>
+<!-- NAV -->
+<nav>
+  <div class="nav-brand">DIPLO<span>CHAIN</span></div>
+  <div class="nav-tabs">
+    <button class="nav-tab" data-page="dashboardPage" onclick="showPage('dashboardPage')">Dashboard</button>
+    <button class="nav-tab" data-page="addPage" onclick="showPage('addPage')">+ Ajouter Diplôme</button>
+    <button class="nav-tab" data-page="verifyPage" onclick="showPage('verifyPage')">🔍 Vérifier</button>
+  </div>
+  <div class="nav-wallet" id="walletStatus">Non connecté</div>
+</nav>
 
-    <!-- Mint Diplôme -->
-    <section>
-        <h2>➕ Ajouter un Diplôme</h2>
-        <input id="studentAddress" placeholder="Adresse Ethereum étudiant (0x...)" /><br>
-        <input id="studentName" placeholder="Nom étudiant" /><br>
-        <input id="diplomaTitle" placeholder="Titre diplôme" /><br>
-        <input id="university" placeholder="Université" /><br>
-        <input id="fieldOfStudy" placeholder="Spécialité" /><br>
-        <input id="issueDate" placeholder="Date (2024-06-15)" /><br>
-        <input id="diplomaHash" placeholder="Hash du diplôme" /><br>
-        <button class="btn-mint" onclick="mintDiploma()">Mint Diplôme NFT</button>
-        <div id="mintResult"></div>
-    </section>
+<!-- ═══════════════════════════════════════ -->
+<!-- PAGE 1 : LOGIN                         -->
+<!-- ═══════════════════════════════════════ -->
+<div class="page active" id="loginPage" style="display:flex;justify-content:center;align-items:center;">
+  <div class="login-container">
+    <div class="login-header">
+      <div class="logo">🎓</div>
+      <h1>DIPLOCHAIN</h1>
+      <p>Système de vérification de diplômes sur blockchain</p>
+    </div>
+    <div class="login-card">
+      <button class="metamask-btn" onclick="connectMetamask()">
+        🦊 Connecter avec MetaMask
+      </button>
+      <div class="divider">ou connexion administrateur</div>
+      <div class="form-group">
+        <label>Identifiant</label>
+        <input type="text" id="loginUser" placeholder="admin" value="admin">
+      </div>
+      <div class="form-group">
+        <label>Mot de passe</label>
+        <input type="password" id="loginPass" placeholder="••••••••" value="admin123">
+      </div>
+      <div class="alert alert-danger" id="loginError">
+        ❌ Identifiants incorrects
+      </div>
+      <button class="btn btn-primary" onclick="login()">
+        Se connecter
+      </button>
+      <p style="text-align:center;margin-top:16px;font-size:12px;color:var(--muted)">
+        Accès restreint — Université / Administrateur uniquement
+      </p>
+    </div>
+  </div>
+</div>
 
-    <!-- Vérifier Diplôme -->
-    <section>
-        <h2>🔍 Vérifier un Diplôme</h2>
-        <input id="tokenId" placeholder="Token ID (ex: 0)" /><br>
-        <input id="verifyHash" placeholder="Hash du diplôme" /><br>
-        <button class="btn-verify" onclick="verifyDiploma()">Vérifier</button>
-        <div id="verifyResult"></div>
-    </section>
+<!-- ═══════════════════════════════════════ -->
+<!-- PAGE 2 : DASHBOARD                     -->
+<!-- ═══════════════════════════════════════ -->
+<div class="page" id="dashboardPage">
+  <div class="dashboard">
+    <div class="page-header">
+      <h2>// Dashboard</h2>
+      <p>Vue d'ensemble du système de vérification</p>
+    </div>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Diplômes enregistrés</div>
+        <div class="stat-value" id="statTotal">—</div>
+        <div class="stat-sub">Sur blockchain Sepolia</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Contrat déployé</div>
+        <div class="stat-value" style="font-size:13px;color:var(--success)">✓ Actif</div>
+        <div class="stat-sub">Sepolia Testnet</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Wallet connecté</div>
+        <div class="stat-value" style="font-size:11px" id="statWallet">—</div>
+        <div class="stat-sub">Propriétaire du contrat</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Réseau</div>
+        <div class="stat-value" style="font-size:16px">Sepolia</div>
+        <div class="stat-sub">Chain ID: 11155111</div>
+      </div>
+    </div>
+    <div class="card">
+      <div class="card-title">Adresse du Smart Contract</div>
+      <div class="hash-display">0x817365bEb3959EDfce3f745a0ABBd51FfD2524D6</div>
+      <p style="font-size:12px;color:var(--muted);margin-top:8px">
+        <a href="https://sepolia.etherscan.io/address/0x817365bEb3959EDfce3f745a0ABBd51FfD2524D6" target="_blank" class="tx-link">Voir sur Sepolia Etherscan ↗</a>
+      </p>
+    </div>
+    <div class="card">
+      <div class="card-title">Actions rapides</div>
+      <div style="display:flex;gap:12px;flex-wrap:wrap">
+        <button class="btn btn-primary" style="width:auto;padding:12px 24px" onclick="showPage('addPage')">+ Ajouter un diplôme</button>
+        <button class="btn btn-outline" onclick="showPage('verifyPage')">🔍 Vérifier un diplôme</button>
+        <button class="btn btn-outline" onclick="logout()">← Déconnexion</button>
+      </div>
+    </div>
+  </div>
+</div>
 
-    <!-- Infos Diplôme -->
-    <section>
-        <h2>📄 Informations Diplôme</h2>
-        <input id="infoTokenId" placeholder="Token ID (ex: 0)" /><br>
-        <button class="btn-verify" onclick="getDiploma()">Récupérer Infos</button>
-        <div id="diplomaInfo"></div>
-    </section>
+<!-- ═══════════════════════════════════════ -->
+<!-- PAGE 3 : AJOUTER DIPLÔME              -->
+<!-- ═══════════════════════════════════════ -->
+<div class="page" id="addPage">
+  <div class="add-diploma-layout">
+    <div class="page-header">
+      <h2>// Ajouter un Diplôme</h2>
+      <p>Enregistrement sécurisé sur la blockchain Ethereum</p>
+    </div>
+
+    <!-- Steps -->
+    <div class="steps">
+      <div class="step active" id="step1">
+        <div class="step-num">1</div>
+        <div class="step-label">Formulaire</div>
+      </div>
+      <div class="step-line" id="line1"></div>
+      <div class="step" id="step2">
+        <div class="step-num">2</div>
+        <div class="step-label">Vérification</div>
+      </div>
+      <div class="step-line" id="line2"></div>
+      <div class="step" id="step3">
+        <div class="step-num">3</div>
+        <div class="step-label">Blockchain</div>
+      </div>
+      <div class="step-line" id="line3"></div>
+      <div class="step" id="step4">
+        <div class="step-num">4</div>
+        <div class="step-label">QR Code</div>
+      </div>
+    </div>
+
+    <!-- Alerts -->
+    <div class="alert alert-danger" id="addError"></div>
+    <div class="alert alert-warning" id="addWarning"></div>
+    <div class="alert alert-success" id="addSuccess"></div>
+    <div class="alert alert-info" id="addInfo"></div>
+
+    <!-- STEP 1: Formulaire -->
+    <div id="formStep">
+      <div class="card">
+        <div class="card-title">Informations de l'étudiant</div>
+        <div class="form-grid">
+          <div class="form-group">
+            <label>Adresse Ethereum étudiant</label>
+            <input type="text" id="studentAddress" placeholder="0x...">
+          </div>
+          <div class="form-group">
+            <label>Nom complet</label>
+            <input type="text" id="studentName" placeholder="Ahmed Bennani">
+          </div>
+          <div class="form-group">
+            <label>Titre du diplôme</label>
+            <input type="text" id="diplomaTitle" placeholder="Licence Informatique">
+          </div>
+          <div class="form-group">
+            <label>Université</label>
+            <input type="text" id="university" placeholder="Université Hassan II">
+          </div>
+          <div class="form-group">
+            <label>Spécialité / Filière</label>
+            <input type="text" id="fieldOfStudy" placeholder="Génie Logiciel">
+          </div>
+          <div class="form-group">
+            <label>Date d'obtention</label>
+            <input type="date" id="issueDate">
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-primary" onclick="validateAndAdd()">
+        Vérifier et enregistrer →
+      </button>
+    </div>
+
+    <!-- STEP 4: QR Code result -->
+    <div id="qrStep" style="display:none">
+      <div class="card">
+        <div class="card-title">✅ Diplôme enregistré avec succès</div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:24px;align-items:start">
+          <div>
+            <p style="font-size:13px;color:var(--muted);margin-bottom:12px">QR Code du diplôme :</p>
+            <div class="qr-container" id="qrContainer">
+              <div id="qrCode"></div>
+              <div class="qr-label" id="qrLabel">Diplôme NFT</div>
+            </div>
+            <button class="btn btn-outline" style="margin-top:12px;width:100%" onclick="downloadQR()">
+              ⬇ Télécharger QR Code
+            </button>
+          </div>
+          <div>
+            <p style="font-size:13px;color:var(--muted);margin-bottom:12px">Détails du diplôme :</p>
+            <div id="diplomaDetails" style="font-size:13px;line-height:1.8"></div>
+            <div style="margin-top:16px">
+              <p style="font-size:11px;color:var(--muted);margin-bottom:4px">Hash du diplôme :</p>
+              <div class="hash-display" id="diplomaHashDisplay"></div>
+            </div>
+            <div style="margin-top:12px">
+              <p style="font-size:11px;color:var(--muted);margin-bottom:4px">Transaction :</p>
+              <div class="hash-display" id="txHashDisplay"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <button class="btn btn-outline" onclick="resetForm()" style="width:auto;padding:12px 24px">
+        + Ajouter un autre diplôme
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- PAGE 4 : VÉRIFIER DIPLÔME             -->
+<!-- ═══════════════════════════════════════ -->
+<div class="page" id="verifyPage">
+  <div class="verify-layout">
+    <div class="page-header">
+      <h2>// Vérifier un Diplôme</h2>
+      <p>Authentification via blockchain — accessible à tous</p>
+    </div>
+
+    <div class="alert alert-danger" id="verifyError"></div>
+    <div class="alert alert-info" id="verifyInfo"></div>
+
+    <!-- Method 1: Token ID -->
+    <div class="card">
+      <div class="card-title">Vérification par Token ID + Hash</div>
+      <div class="form-grid">
+        <div class="form-group">
+          <label>Token ID (NFT)</label>
+          <input type="number" id="verifyTokenId" placeholder="0" min="0">
+        </div>
+        <div class="form-group">
+          <label>Hash du diplôme</label>
+          <input type="text" id="verifyHash" placeholder="Hash SHA256 du diplôme">
+        </div>
+      </div>
+      <button class="btn btn-primary" style="width:auto;padding:12px 24px" onclick="verifyDiploma()">
+        🔍 Vérifier l'authenticité
+      </button>
+    </div>
+
+    <!-- Method 2: QR Upload -->
+    <div class="card">
+      <div class="card-title">Vérification par QR Code</div>
+      <div class="scan-area" onclick="document.getElementById('qrUpload').click()">
+        <div class="scan-icon">📷</div>
+        <h3>Scanner / Importer un QR Code</h3>
+        <p>Cliquez pour importer une image du QR code du diplôme</p>
+      </div>
+      <input type="file" id="qrUpload" accept="image/*" onchange="handleQRUpload(event)">
+    </div>
+
+    <!-- Result -->
+    <div class="result-card" id="resultCard">
+      <div class="result-header">
+        <div class="result-icon" id="resultIcon">—</div>
+        <div>
+          <div class="result-title" id="resultTitle">—</div>
+          <div style="font-size:13px;color:var(--muted)" id="resultSub">—</div>
+        </div>
+      </div>
+      <div class="diploma-info" id="diplomaInfo"></div>
+      <div class="fraud-meter" id="fraudMeter" style="display:none">
+        <div class="fraud-label">
+          <span style="font-size:12px;color:var(--muted)">Score de fraude IA</span>
+          <span id="fraudScore" style="font-family:var(--font-mono);font-size:12px">0%</span>
+        </div>
+        <div class="fraud-bar">
+          <div class="fraud-fill" id="fraudFill" style="width:0%"></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
 
 <script>
-    const CONTRACT_ADDRESS = "0x817365bEb3959EDfce3f745a0ABBd51FfD2524D6";
-    const ABI = [
-        "function mintDiploma(address student, string studentName, string diplomaTitle, string university, string fieldOfStudy, string issueDate, string diplomaHash, string metadataURI) public",
-        "function verifyDiploma(uint256 tokenId, string diplomaHash) public view returns (bool)",
-        "function diplomas(uint256 tokenId) public view returns (string studentName, string diplomaTitle, string university, string fieldOfStudy, string issueDate, string diplomaHash, bool valid, uint8 fraudStatus, uint256 fraudScore, string aiReportHash)",
-        "function revokeDiploma(uint256 tokenId) public"
-    ];
+// ════════════════════════════════════════════
+// CONFIG
+// ════════════════════════════════════════════
+const CONTRACT_ADDRESS = "0x817365bEb3959EDfce3f745a0ABBd51FfD2524D6";
+const ABI = [
+  "function mintDiploma(address student, string studentName, string diplomaTitle, string university, string fieldOfStudy, string issueDate, string diplomaHash, string metadataURI) public",
+  "function verifyDiploma(uint256 tokenId, string diplomaHash) public view returns (bool)",
+  "function diplomas(uint256 tokenId) public view returns (string studentName, string diplomaTitle, string university, string fieldOfStudy, string issueDate, string diplomaHash, bool valid, uint8 fraudStatus, uint256 fraudScore, string aiReportHash)",
+  "function nextTokenId() public view returns (uint256)"
+];
 
-    let provider, signer, contract;
+// Credentials admin (à remplacer par une vraie auth)
+const ADMIN_CREDENTIALS = { user: "admin", pass: "admin123" };
 
-    // ================================
-    // Connecter Metamask
-    // ================================
-    async function connectMetamask() {
-    if (!window.ethereum) {
-        alert("Metamask non détecté !");
-        return;
-    }
+let provider, signer, contract;
+let isLoggedIn = false;
+let currentTokenId = null;
+let currentHash = null;
 
-    try {
-        // Forcer le réseau Sepolia (chainId = 11155111)
-        await window.ethereum.request({
-            method: "wallet_switchEthereumChain",
-            params: [{ chainId: "0xaa36a7" }]  // 0xaa36a7 = Sepolia
-        });
-
-        await window.ethereum.request({ method: "eth_requestAccounts" });
-
-        provider = new ethers.providers.Web3Provider(window.ethereum);
-        signer = provider.getSigner();
-        contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
-
-        const address = await signer.getAddress();
-        const network = await provider.getNetwork();
-
-        document.getElementById("walletInfo").innerHTML = `
-            <div class="result info">
-                ✅ Connecté : ${address}<br>
-                🌐 Réseau : ${network.name} (chainId: ${network.chainId})
-            </div>`;
-
-    } catch (err) {
-        document.getElementById("walletInfo").innerHTML = `
-            <div class="result error">❌ Erreur: ${err.message}</div>`;
-    }
+// ════════════════════════════════════════════
+// NAVIGATION
+// ════════════════════════════════════════════
+function showPage(pageId) {
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById(pageId).classList.add('active');
+  document.querySelectorAll('.nav-tab').forEach(t => {
+    t.classList.toggle('active', t.dataset.page === pageId);
+  });
 }
-// Auto-connect si déjà connecté
+
+function showNav() {
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.add('visible'));
+}
+
+function hideNav() {
+  document.querySelectorAll('.nav-tab').forEach(t => t.classList.remove('visible'));
+}
+
+// ════════════════════════════════════════════
+// LOGIN
+// ════════════════════════════════════════════
+async function login() {
+  const user = document.getElementById('loginUser').value;
+  const pass = document.getElementById('loginPass').value;
+
+  if (user === ADMIN_CREDENTIALS.user && pass === ADMIN_CREDENTIALS.pass) {
+    isLoggedIn = true;
+    showNav();
+    showPage('dashboardPage');
+    updateDashboard();
+  } else {
+    showAlert('loginError', '❌ Identifiants incorrects. Vérifiez vos informations.', true);
+  }
+}
+
+function logout() {
+  isLoggedIn = false;
+  hideNav();
+  showPage('loginPage');
+}
+
+// ════════════════════════════════════════════
+// METAMASK
+// ════════════════════════════════════════════
+async function connectMetamask() {
+  if (!window.ethereum) {
+    alert("MetaMask non détecté ! Installez l'extension.");
+    return;
+  }
+  try {
+    // Switch to Sepolia
+    await window.ethereum.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: "0xaa36a7" }]
+    });
+
+    await window.ethereum.request({ method: "eth_requestAccounts" });
+
+    provider = new ethers.providers.Web3Provider(window.ethereum);
+    signer = provider.getSigner();
+    contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+
+    const address = await signer.getAddress();
+    const short = address.slice(0,6) + '...' + address.slice(-4);
+
+    document.getElementById('walletStatus').textContent = '🦊 ' + short;
+    document.getElementById('walletStatus').classList.add('connected');
+
+    // Auto login si MetaMask connecté
+    isLoggedIn = true;
+    showNav();
+    showPage('dashboardPage');
+    updateDashboard();
+
+  } catch(err) {
+    alert("Erreur MetaMask : " + err.message);
+  }
+}
+
+// Auto-reconnect
 window.addEventListener('load', async () => {
-    if (window.ethereum) {
-        const accounts = await window.ethereum.request({ 
-            method: "eth_accounts" 
-        });
-        if (accounts.length > 0) {
-            await connectMetamask();
-        }
-    }
+  if (window.ethereum) {
+    const accounts = await window.ethereum.request({ method: "eth_accounts" });
+    if (accounts.length > 0) await connectMetamask();
+  }
 });
 
-    // ================================
-    // Mint Diplôme
-    // ================================
-    async function mintDiploma() {
-        if (!contract) { alert("Connecte Metamask d'abord !"); return; }
+// ════════════════════════════════════════════
+// DASHBOARD
+// ════════════════════════════════════════════
+async function updateDashboard() {
+  if (!contract) return;
+  try {
+    const total = await contract.nextTokenId();
+    document.getElementById('statTotal').textContent = total.toString();
+    const addr = await signer.getAddress();
+    document.getElementById('statWallet').textContent = addr.slice(0,8) + '...' + addr.slice(-6);
+  } catch(e) {}
+}
 
-        try {
-            document.getElementById("mintResult").innerHTML =
-                '<div class="result info">⏳ Transaction en cours...</div>';
+// ════════════════════════════════════════════
+// VALIDATION & ADD DIPLOMA
+// ════════════════════════════════════════════
+async function validateAndAdd() {
+  clearAlerts();
 
-            const tx = await contract.mintDiploma(
-                document.getElementById("studentAddress").value,
-                document.getElementById("studentName").value,
-                document.getElementById("diplomaTitle").value,
-                document.getElementById("university").value,
-                document.getElementById("fieldOfStudy").value,
-                document.getElementById("issueDate").value,
-                document.getElementById("diplomaHash").value,
-                "https://monsite.com/metadata"
-            );
+  const fields = {
+    studentAddress: document.getElementById('studentAddress').value.trim(),
+    studentName: document.getElementById('studentName').value.trim(),
+    diplomaTitle: document.getElementById('diplomaTitle').value.trim(),
+    university: document.getElementById('university').value.trim(),
+    fieldOfStudy: document.getElementById('fieldOfStudy').value.trim(),
+    issueDate: document.getElementById('issueDate').value,
+  };
 
-            await tx.wait();
+  // ── ÉTAPE 1 : Vérification cohérence des données ──
+  setStep(2, 'active');
+  showAlert('addInfo', '⏳ Étape 1/3 — Vérification de la cohérence des données...', true);
+  await sleep(800);
 
-            document.getElementById("mintResult").innerHTML = `
-                <div class="result success">
-                    ✅ Diplôme ajouté avec succès !<br>
-                    TX: ${tx.hash}
-                </div>`;
-        } catch (err) {
-            document.getElementById("mintResult").innerHTML = `
-                <div class="result error">❌ Erreur: ${err.message}</div>`;
-        }
+  const errors = validateFields(fields);
+  if (errors.length > 0) {
+    showAlert('addError', '❌ Fraude détectée — Données invalides :\n• ' + errors.join('\n• '), true);
+    showAlert('addInfo', '', false);
+    setStep(2, 'error');
+    return;
+  }
+
+  showAlert('addInfo', '✅ Étape 1/3 — Données valides. Génération du hash...', true);
+  await sleep(600);
+
+  // ── ÉTAPE 2 : Génération du hash ──
+  const diplomaHash = await generateHash(fields);
+  showAlert('addInfo', '⏳ Étape 2/3 — Vérification du hash sur la blockchain...', true);
+  await sleep(500);
+
+  // ── ÉTAPE 3 : Interaction blockchain ──
+  if (!contract) {
+    showAlert('addWarning', '⚠️ MetaMask non connecté. Veuillez vous connecter.', true);
+    return;
+  }
+
+  setStep(3, 'active');
+  showLoading('Vérification sur la blockchain...');
+
+  try {
+    // Mint le diplôme NFT
+    showLoading('Enregistrement sur la blockchain...');
+    const tx = await contract.mintDiploma(
+      fields.studentAddress || await signer.getAddress(),
+      fields.studentName,
+      fields.diplomaTitle,
+      fields.university,
+      fields.fieldOfStudy,
+      fields.issueDate,
+      diplomaHash,
+      "https://diplochain.io/metadata/" + diplomaHash.slice(0,8)
+    );
+
+    showLoading('Confirmation de la transaction...');
+    const receipt = await tx.wait();
+
+    hideLoading();
+    setStep(3, 'done');
+    setStep(4, 'active');
+
+    // Récupérer le tokenId
+    const total = await contract.nextTokenId();
+    currentTokenId = total.toNumber() - 1;
+    currentHash = diplomaHash;
+
+    // Afficher le QR code
+    showAlert('addSuccess', '✅ Diplôme enregistré avec succès sur la blockchain !', true);
+    showAlert('addInfo', '', false);
+    showQRCode(fields, diplomaHash, tx.hash, currentTokenId);
+
+  } catch(err) {
+    hideLoading();
+    if (err.message.includes('already')) {
+      showAlert('addError', '❌ Doublon détecté — Ce diplôme est déjà enregistré sur la blockchain !', true);
+    } else {
+      showAlert('addError', '❌ Erreur blockchain : ' + err.message.slice(0, 100), true);
     }
+    showAlert('addInfo', '', false);
+  }
+}
 
-    // ================================
-    // Vérifier Diplôme
-    // ================================
-    async function verifyDiploma() {
-        if (!contract) { alert("Connecte Metamask d'abord !"); return; }
+function validateFields(fields) {
+  const errors = [];
+  if (!fields.studentName || fields.studentName.length < 2)
+    errors.push("Nom étudiant invalide (minimum 2 caractères)");
+  if (!fields.diplomaTitle || fields.diplomaTitle.length < 3)
+    errors.push("Titre du diplôme invalide");
+  if (!fields.university || fields.university.length < 3)
+    errors.push("Nom d'université invalide");
+  if (!fields.fieldOfStudy)
+    errors.push("Spécialité requise");
+  if (!fields.issueDate)
+    errors.push("Date d'obtention requise");
+  else {
+    const date = new Date(fields.issueDate);
+    const now = new Date();
+    if (date > now) errors.push("La date d'obtention ne peut pas être dans le futur");
+    if (date.getFullYear() < 1950) errors.push("Date d'obtention invalide");
+  }
+  return errors;
+}
 
-        try {
-            const tokenId = document.getElementById("tokenId").value;
-            const hash = document.getElementById("verifyHash").value;
-            const result = await contract.verifyDiploma(tokenId, hash);
+async function generateHash(fields) {
+  const data = JSON.stringify(fields);
+  const encoded = new TextEncoder().encode(data);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', encoded);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  return '0x' + hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+}
 
-            document.getElementById("verifyResult").innerHTML = result
-                ? '<div class="result success">✅ Diplôme authentique !</div>'
-                : '<div class="result error">❌ Faux diplôme détecté !</div>';
-        } catch (err) {
-            document.getElementById("verifyResult").innerHTML = `
-                <div class="result error">❌ Erreur: ${err.message}</div>`;
-        }
-    }
+function showQRCode(fields, hash, txHash, tokenId) {
+  document.getElementById('formStep').style.display = 'none';
+  document.getElementById('qrStep').style.display = 'block';
 
-    // ================================
-    // Récupérer Infos
-    // ================================
-    async function getDiploma() {
-        if (!contract) { alert("Connecte Metamask d'abord !"); return; }
+  setStep(1, 'done'); setStep(2, 'done');
+  setStep(3, 'done'); setStep(4, 'done');
+  document.getElementById('line1').classList.add('done');
+  document.getElementById('line2').classList.add('done');
+  document.getElementById('line3').classList.add('done');
 
-        try {
-            const tokenId = document.getElementById("infoTokenId").value;
-            const d = await contract.diplomas(tokenId);
+  // QR Content
+  const qrData = JSON.stringify({
+    tokenId, hash,
+    student: fields.studentName,
+    diploma: fields.diplomaTitle,
+    university: fields.university,
+    date: fields.issueDate
+  });
 
-            document.getElementById("diplomaInfo").innerHTML = `
-                <div class="result info">
-                    👤 Étudiant    : ${d.studentName}<br>
-                    🎓 Titre       : ${d.diplomaTitle}<br>
-                    🏫 Université  : ${d.university}<br>
-                    📚 Spécialité  : ${d.fieldOfStudy}<br>
-                    📅 Date        : ${d.issueDate}<br>
-                    ✅ Valide      : ${d.valid}<br>
-                    🔍 Fraude      : ${["NON_ANALYSÉ","LÉGITIME","SUSPECT","FRAUDULEUX"][d.fraudStatus]}
-                </div>`;
-        } catch (err) {
-            document.getElementById("diplomaInfo").innerHTML = `
-                <div class="result error">❌ Erreur: ${err.message}</div>`;
-        }
-    }
+  document.getElementById('qrCode').innerHTML = '';
+  new QRCode(document.getElementById('qrCode'), {
+    text: qrData, width: 180, height: 180,
+    colorDark: "#000000", colorLight: "#ffffff",
+    correctLevel: QRCode.CorrectLevel.H
+  });
+  document.getElementById('qrLabel').textContent = fields.studentName + ' — ' + fields.diplomaTitle;
+
+  document.getElementById('diplomaDetails').innerHTML = `
+    <div style="margin-bottom:8px">👤 <strong>${fields.studentName}</strong></div>
+    <div style="margin-bottom:8px">🎓 ${fields.diplomaTitle}</div>
+    <div style="margin-bottom:8px">🏫 ${fields.university}</div>
+    <div style="margin-bottom:8px">📚 ${fields.fieldOfStudy}</div>
+    <div style="margin-bottom:8px">📅 ${fields.issueDate}</div>
+    <div>🔑 Token ID : <span style="font-family:var(--font-mono);color:var(--accent)">#${tokenId}</span></div>
+  `;
+
+  document.getElementById('diplomaHashDisplay').textContent = hash;
+  document.getElementById('txHashDisplay').innerHTML =
+    `<a href="https://sepolia.etherscan.io/tx/${txHash}" target="_blank" class="tx-link">${txHash}</a>`;
+}
+
+function resetForm() {
+  document.getElementById('formStep').style.display = 'block';
+  document.getElementById('qrStep').style.display = 'none';
+  ['studentAddress','studentName','diplomaTitle','university','fieldOfStudy','issueDate']
+    .forEach(id => document.getElementById(id).value = '');
+  clearAlerts();
+  [1,2,3,4].forEach(i => setStep(i, i===1?'active':''));
+  ['line1','line2','line3'].forEach(id => document.getElementById(id).classList.remove('done'));
+}
+
+function downloadQR() {
+  const canvas = document.querySelector('#qrCode canvas');
+  if (!canvas) return;
+  const link = document.createElement('a');
+  link.download = 'diplome-qr.png';
+  link.href = canvas.toDataURL();
+  link.click();
+}
+
+// ════════════════════════════════════════════
+// VERIFY DIPLOMA
+// ════════════════════════════════════════════
+async function verifyDiploma() {
+  clearVerifyAlerts();
+  const tokenId = document.getElementById('verifyTokenId').value;
+  const hash = document.getElementById('verifyHash').value.trim();
+
+  if (tokenId === '' || !hash) {
+    showAlert('verifyError', '❌ Veuillez remplir le Token ID et le Hash', true);
+    return;
+  }
+
+  if (!contract) {
+    showAlert('verifyError', '❌ MetaMask non connecté', true);
+    return;
+  }
+
+  showLoading('Vérification sur la blockchain...');
+  showAlert('verifyInfo', '⏳ Interrogation du smart contract...', true);
+
+  try {
+    const isValid = await contract.verifyDiploma(tokenId, hash);
+    const diploma = await contract.diplomas(tokenId);
+    hideLoading();
+    showVerifyResult(isValid, diploma, tokenId);
+  } catch(err) {
+    hideLoading();
+    showAlert('verifyError', '❌ Erreur : ' + err.message.slice(0,100), true);
+  }
+}
+
+async function handleQRUpload(event) {
+  const file = event.target.files[0];
+  if (!file) return;
+  showAlert('verifyInfo', '⏳ Lecture du QR code...', true);
+  // Simulation lecture QR (nécessite une lib jsQR en production)
+  setTimeout(() => {
+    showAlert('verifyInfo', '⚠️ Import QR : entrez manuellement le Token ID et Hash ci-dessus.', true);
+  }, 1000);
+}
+
+function showVerifyResult(isValid, diploma, tokenId) {
+  const card = document.getElementById('resultCard');
+  const fraudStatuses = ['Non analysé','Légitime','Suspect','Frauduleux'];
+  const fraudColors = ['tag-info','tag-success','tag-warning','tag-danger'];
+
+  card.className = 'result-card show ' + (isValid ? 'result-valid' : 'result-invalid');
+
+  document.getElementById('resultIcon').textContent = isValid ? '✅' : '❌';
+  document.getElementById('resultTitle').textContent = isValid ? 'Diplôme Authentique' : 'Faux Diplôme Détecté';
+  document.getElementById('resultSub').textContent = isValid
+    ? 'Ce diplôme est enregistré et vérifié sur la blockchain Sepolia'
+    : 'Ce diplôme n\'existe pas ou a été révoqué sur la blockchain';
+
+  if (isValid) {
+    const score = parseInt(diploma.fraudScore || 0);
+    const statusIdx = parseInt(diploma.fraudStatus || 0);
+    document.getElementById('diplomaInfo').innerHTML = `
+      <div class="info-item"><div class="info-label">Étudiant</div><div class="info-value">${diploma.studentName}</div></div>
+      <div class="info-item"><div class="info-label">Diplôme</div><div class="info-value">${diploma.diplomaTitle}</div></div>
+      <div class="info-item"><div class="info-label">Université</div><div class="info-value">${diploma.university}</div></div>
+      <div class="info-item"><div class="info-label">Spécialité</div><div class="info-value">${diploma.fieldOfStudy}</div></div>
+      <div class="info-item"><div class="info-label">Date</div><div class="info-value">${diploma.issueDate}</div></div>
+      <div class="info-item"><div class="info-label">Statut IA</div><div class="info-value"><span class="tag ${fraudColors[statusIdx]}">${fraudStatuses[statusIdx]}</span></div></div>
+      <div class="info-item" style="grid-column:1/-1"><div class="info-label">Token ID</div><div class="info-value" style="font-family:var(--font-mono);color:var(--accent)">#${tokenId}</div></div>
+    `;
+
+    const meter = document.getElementById('fraudMeter');
+    meter.style.display = 'block';
+    document.getElementById('fraudScore').textContent = score + '%';
+    const fill = document.getElementById('fraudFill');
+    fill.style.width = score + '%';
+    fill.className = 'fraud-fill ' + (score < 30 ? 'fraud-low' : score < 70 ? 'fraud-mid' : 'fraud-high');
+
+  } else {
+    document.getElementById('diplomaInfo').innerHTML = `
+      <div class="info-item" style="grid-column:1/-1">
+        <div class="info-label">Action</div>
+        <div class="info-value" style="color:var(--danger)">Tentative signalée et journalisée</div>
+      </div>
+    `;
+    document.getElementById('fraudMeter').style.display = 'none';
+  }
+
+  showAlert('verifyInfo', '', false);
+}
+
+// ════════════════════════════════════════════
+// HELPERS
+// ════════════════════════════════════════════
+function showAlert(id, msg, show) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  el.textContent = msg;
+  el.classList.toggle('show', show);
+}
+
+function clearAlerts() {
+  ['addError','addWarning','addSuccess','addInfo'].forEach(id => showAlert(id, '', false));
+}
+
+function clearVerifyAlerts() {
+  ['verifyError','verifyInfo'].forEach(id => showAlert(id, '', false));
+  document.getElementById('resultCard').className = 'result-card';
+}
+
+function setStep(num, state) {
+  const el = document.getElementById('step' + num);
+  if (!el) return;
+  el.className = 'step ' + (state || '');
+}
+
+function showLoading(text) {
+  document.getElementById('loadingText').textContent = text || 'Chargement...';
+  document.getElementById('loadingOverlay').classList.add('show');
+}
+
+function hideLoading() {
+  document.getElementById('loadingOverlay').classList.remove('show');
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// Keyboard enter on login
+document.getElementById('loginPass').addEventListener('keydown', e => {
+  if (e.key === 'Enter') login();
+});
 </script>
-
 </body>
 </html>
