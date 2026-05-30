@@ -726,8 +726,8 @@ async function login() {
   if (user === ADMIN_CREDENTIALS.user && pass === ADMIN_CREDENTIALS.pass) {
     isLoggedIn = true;
     showNav();
-    showPage('dashboardPage');
-    updateDashboard();
+    showPage('addPage');
+
   } else {
     showAlert('loginError', '❌ Identifiants incorrects. Vérifiez vos informations.', true);
   }
