@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Vérification Diplômes</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+    <style>
+        body { font-family: Arial; max-width: 800px; margin: 50px auto; padding: 20px; }
+        button { padding: 10px 20px; margin: 10px 5px; cursor: pointer; border-radius: 8px; border: none; }
+        .btn-connect { background: #f6851b; color: white; font-size: 16px; }
+        .btn-mint { background: #28a745; color: white; }
+        .btn-verify { background: #007bff; color: white; }
+        input { padding: 8px; margin: 5px; width: 300px; border-radius: 5px; border: 1px solid #ccc; }
+        .result { padding: 15px; margin: 10px 0; border-radius: 8px; font-weight: bold; }
+        .success { background: #d4edda; color: #155724; }
+        .error { background: #f8d7da; color: #721c24; }
+        .info { background: #d1ecf1; color: #0c5460; }
+        h2 { border-bottom: 2px solid #eee; padding-bottom: 10px; }
+    </style>
+</head>
+<body>
+
+    <h1>🎓 Système de Vérification de Diplômes</h1>
+
+    <!-- Connexion Metamask -->
+    <section>
+        <h2>🦊 Connexion Metamask</h2>
+        <button class="btn-connect" onclick="connectMetamask()">Connecter Metamask</button>
+        <div id="walletInfo"></div>
+    </section>
+
+    <!-- Mint Diplôme -->
+    <section>
+        <h2>➕ Ajouter un Diplôme</h2>
+        <input id="studentAddress" placeholder="Adresse Ethereum étudiant (0x...)" /><br>
+        <input id="studentName" placeholder="Nom étudiant" /><br>
+        <input id="diplomaTitle" placeholder="Titre diplôme" /><br>
+        <input id="university" placeholder="Université" /><br>
+        <input id="fieldOfStudy" placeholder="Spécialité" /><br>
+        <input id="issueDate" placeholder="Date (2024-06-15)" /><br>
+        <input id="diplomaHash" placeholder="Hash du diplôme" /><br>
+        <button class="btn-mint" onclick="mintDiploma()">Mint Diplôme NFT</button>
+        <div id="mintResult"></div>
+    </section>
+
+    <!-- Vérifier Diplôme -->
+    <section>
+        <h2>🔍 Vérifier un Diplôme</h2>
+        <input id="tokenId" placeholder="Token ID (ex: 0)" /><br>
+        <input id="verifyHash" placeholder="Hash du diplôme" /><br>
+        <button class="btn-verify" onclick="verifyDiploma()">Vérifier</button>
+        <div id="verifyResult"></div>
+    </section>
+
+    <!-- Infos Diplôme -->
+    <section>
+        <h2>📄 Informations Diplôme</h2>
+        <input id="infoTokenId" placeholder="Token ID (ex: 0)" /><br>
+        <button class="btn-verify" onclick="getDiploma()">Récupérer Infos</button>
+        <div id="diplomaInfo"></div>
+    </section>
+
+<script>
+    const CONTRACT_ADDRESS = "0x817365bEb3959EDfce3f745a0ABBd51FfD2524D6";
+    const ABI = [
+        "function mintDiploma(address student, string studentName, string diplomaTitle, string university, string fieldOfStudy, string issueDate, string diplomaHash, string metadataURI) public",
+        "function verifyDiploma(uint256 tokenId, string diplomaHash) public view returns (bool)",
+        "function diplomas(uint256 tokenId) public view returns (string studentName, string diplomaTitle, string university, string fieldOfStudy, string issueDate, string diplomaHash, bool valid, uint8 fraudStatus, uint256 fraudScore, string aiReportHash)",
+        "function revokeDiploma(uint256 tokenId) public"
+    ];
+
+    let provider, signer, contract;
+
+    // ================================
+    // Connecter Metamask
+    // ================================
+    async function connectMetamask() {
+    if (!window.ethereum) {
+        alert("Metamask non détecté !");
+        return;
+    }
+
+    try {
+        // Forcer le réseau Sepolia (chainId = 11155111)
+        await window.ethereum.request({
+            method: "wallet_switchEthereumChain",
+            params: [{ chainId: "0xaa36a7" }]  // 0xaa36a7 = Sepolia
+        });
+
+        await window.ethereum.request({ method: "eth_requestAccounts" });
+
+        provider = new ethers.providers.Web3Provider(window.ethereum);
+        signer = provider.getSigner();
+        contract = new ethers.Contract(CONTRACT_ADDRESS, ABI, signer);
+
+        const address = await signer.getAddress();
+        const network = await provider.getNetwork();
+
+        document.getElementById("walletInfo").innerHTML = `
+            <div class="result info">
+                ✅ Connecté : ${address}<br>
+                🌐 Réseau : ${network.name} (chainId: ${network.chainId})
+            </div>`;
+
+    } catch (err) {
+        document.getElementById("walletInfo").innerHTML = `
+            <div class="result error">❌ Erreur: ${err.message}</div>`;
+    }
+}
+// Auto-connect si déjà connecté
+window.addEventListener('load', async () => {
+    if (window.ethereum) {
+        const accounts = await window.ethereum.request({ 
+            method: "eth_accounts" 
+        });
+        if (accounts.length > 0) {
+            await connectMetamask();
+        }
+    }
+});
+
+    // ================================
+    // Mint Diplôme
+    // ================================
+    async function mintDiploma() {
+        if (!contract) { alert("Connecte Metamask d'abord !"); return; }
+
+        try {
+            document.getElementById("mintResult").innerHTML =
+                '<div class="result info">⏳ Transaction en cours...</div>';
+
+            const tx = await contract.mintDiploma(
+                document.getElementById("studentAddress").value,
+                document.getElementById("studentName").value,
+                document.getElementById("diplomaTitle").value,
+                document.getElementById("university").value,
+                document.getElementById("fieldOfStudy").value,
+                document.getElementById("issueDate").value,
+                document.getElementById("diplomaHash").value,
+                "https://monsite.com/metadata"
+            );
+
+            await tx.wait();
+
+            document.getElementById("mintResult").innerHTML = `
+                <div class="result success">
+                    ✅ Diplôme ajouté avec succès !<br>
+                    TX: ${tx.hash}
+                </div>`;
+        } catch (err) {
+            document.getElementById("mintResult").innerHTML = `
+                <div class="result error">❌ Erreur: ${err.message}</div>`;
+        }
+    }
+
+    // ================================
+    // Vérifier Diplôme
+    // ================================
+    async function verifyDiploma() {
+        if (!contract) { alert("Connecte Metamask d'abord !"); return; }
+
+        try {
+            const tokenId = document.getElementById("tokenId").value;
+            const hash = document.getElementById("verifyHash").value;
+            const result = await contract.verifyDiploma(tokenId, hash);
+
+            document.getElementById("verifyResult").innerHTML = result
+                ? '<div class="result success">✅ Diplôme authentique !</div>'
+                : '<div class="result error">❌ Faux diplôme détecté !</div>';
+        } catch (err) {
+            document.getElementById("verifyResult").innerHTML = `
+                <div class="result error">❌ Erreur: ${err.message}</div>`;
+        }
+    }
+
+    // ================================
+    // Récupérer Infos
+    // ================================
+    async function getDiploma() {
+        if (!contract) { alert("Connecte Metamask d'abord !"); return; }
+
+        try {
+            const tokenId = document.getElementById("infoTokenId").value;
+            const d = await contract.diplomas(tokenId);
+
+            document.getElementById("diplomaInfo").innerHTML = `
+                <div class="result info">
+                    👤 Étudiant    : ${d.studentName}<br>
+                    🎓 Titre       : ${d.diplomaTitle}<br>
+                    🏫 Université  : ${d.university}<br>
+                    📚 Spécialité  : ${d.fieldOfStudy}<br>
+                    📅 Date        : ${d.issueDate}<br>
+                    ✅ Valide      : ${d.valid}<br>
+                    🔍 Fraude      : ${["NON_ANALYSÉ","LÉGITIME","SUSPECT","FRAUDULEUX"][d.fraudStatus]}
+                </div>`;
+        } catch (err) {
+            document.getElementById("diplomaInfo").innerHTML = `
+                <div class="result error">❌ Erreur: ${err.message}</div>`;
+        }
+    }
+</script>
+
+</body>
+</html>
