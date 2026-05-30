@@ -4,3 +4,10 @@ __pycache__/
 *.pyc
 venv/
 ai/venv/
+
+# Blockchain
+blockchain/node_modules/
+blockchain/artifacts/
+blockchain/cache/
+blockchain/.env
+frontend/node_modules/
