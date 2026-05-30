@@ -11,3 +11,6 @@ blockchain/artifacts/
 blockchain/cache/
 blockchain/.env
 frontend/node_modules/
+blockchain/node_modules/ 
+blockchain/artifacts/ 
+blockchain/cache/ 
